@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>YouTube 썸네일 추출기</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --card: #121821;
+      --muted: #a7b3c0;
+      --text: #e8eef5;
+      --accent: #6fb1ff;
+      --accent-2: #54d6bb;
+      --danger: #ff6b6b;
+      --border: #1f2a37;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0; background: linear-gradient(180deg, #0a0f15, #0b1118);
+      color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", "Apple SD Gothic Neo", "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans", "Microsoft YaHei", sans-serif;
+    }
+    .container { max-width: 980px; margin: 0 auto; padding: 32px 16px 80px; }
+    .header { display:flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    h1 { font-size: 1.6rem; margin: 0; letter-spacing: -.02em; }
+    p.lead { margin: 4px 0 18px; color: var(--muted); }
+
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 16px; }
+    .row { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    @media (min-width: 720px) {
+      .row { grid-template-columns: 1.2fr .8fr; }
+    }
+
+    .input-wrap { display:flex; gap: 8px; flex-wrap: wrap; }
+    .input {
+      flex:1; min-width: 260px; height: 48px; border-radius: 12px; border:1px solid var(--border); padding: 0 14px;
+      background:#0e141c; color: var(--text); outline: none; font-size: 15px;
+    }
+    .btn {
+      height: 48px; padding: 0 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,.06);
+      background: linear-gradient(135deg, #3a7bd5, #00d2ff); color: #001521; font-weight: 700; cursor: pointer;
+      transition: transform .05s ease, filter .2s ease; white-space: nowrap;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn.secondary { background: #18202b; color: var(--text); border:1px solid var(--border); }
+    .btn:disabled { opacity: .55; cursor: not-allowed; }
+
+    .helper { font-size: 13px; color: var(--muted); margin-top: 6px; }
+    .samples { display:flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .chip { font-size: 12px; padding: 6px 10px; background:#0e141b; color: var(--muted); border:1px solid var(--border); border-radius: 999px; cursor: pointer; }
+
+    .grid { display:grid; grid-template-columns: 1fr; gap: 14px; margin-top: 16px; }
+    @media (min-width: 680px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (min-width: 980px) { .grid { grid-template-columns: repeat(3, 1fr); } }
+
+    .thumb-card { background:#0e141c; border:1px solid var(--border); border-radius: 14px; overflow: hidden; display:flex; flex-direction: column; height: 100%; vertical-align: top; }
+    .thumb-img { background:#0a0f14; width:100%; aspect-ratio:16/9; position: relative; overflow: hidden; flex-shrink: 0; }
+    .thumb-img img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+    .thumb-body { padding: 10px 12px; display:flex; flex-direction: column; gap: 8px; flex: 1 1 auto; }
+    .thumb-title { font-size: 14px; color: #d8e6f2; display:flex; align-items: center; gap: 6px; line-height: 1.35; min-height: 40px; word-break: break-word; }
+    .actions { display:flex; gap: 8px; margin-top: auto; }
+    .action { flex:1; text-align:center; text-decoration:none; border-radius: 10px; padding: 8px 10px; font-size: 13px; border:1px solid var(--border); color: var(--text); background:#131b26; display:inline-flex; align-items:center; justify-content:center; }
+    .action.primary { background: linear-gradient(135deg, #00d2ff, #3a7bd5); color:#001521; border: 1px solid rgba(255,255,255,.08); font-weight: 700; }
+
+    .status { margin-top: 12px; color: var(--muted); font-size: 14px; }
+    .error { color: var(--danger); }
+    .footer { margin-top: 28px; color: var(--muted); font-size: 13px; display:flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; padding: 2px 6px; border-radius: 6px; background:#0b121b; border:1px solid var(--border); color:#dbe7f3; font-size: 12px; }
+    .hide { display:none !important; }
+    .spin { width:14px; height:14px; border:2px solid #2b3a4a; border-top-color: #6fb1ff; border-radius: 50%; display:inline-block; animation: rot .9s linear infinite; vertical-align: -2px; }
+    @keyframes rot { to { transform: rotate(360deg);} }
+    .small { font-size:12px; color:#9aabbd; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1>YouTube 썸네일 추출기</h1>
+        <p class="lead">YouTube 링크나 영상 ID를 입력하면 다양한 해상도의 썸네일을 바로 확인하고 열 수 있어요.</p>
+      </div>
+    </div>
+
+    <div class="card row">
+      <div>
+        <label for="input" class="small">YouTube URL 또는 영상 ID</label>
+        <div class="input-wrap">
+          <input id="input" class="input" placeholder="예: https://www.youtube.com/watch?v=dQw4w9WgXcQ 또는 dQw4w9WgXcQ" />
+          <button id="go" class="btn" type="button">썸네일 가져오기</button>
+          <button id="jsonBtn" class="btn secondary" type="button">JSON 보기</button>
+        </div>
+        <div class="helper">지원 형식: <span class="kbd">watch?v=</span>, <span class="kbd">youtu.be/</span>, <span class="kbd">/shorts/</span>, <span class="kbd">/embed/</span>, ID(11자)</div>
+        <div class="samples">
+          <span class="chip" data-sample="https://youtu.be/dQw4w9WgXcQ">샘플 1</span>
+          <span class="chip" data-sample="https://www.youtube.com/watch?v=aqz-KE-bpKQ">샘플 2</span>
+        </div>
+        <div id="status" class="status"></div>
+      </div>
+      <div>
+        <div class="card" style="background:#0b121a">
+          <div class="small">팁</div>
+          <ul class="small" style="margin:6px 0 0 18px; line-height:1.65">
+            <li>일부 영상은 <b>maxresdefault.jpg</b>가 없을 수 있어요. 이 경우 자동으로 제외돼요.</li>
+            <li>이미지를 누르면 새 탭에서 열립니다. 거기서 저장하면 가장 확실해요.</li>
+            <li>URL은 <span class="kbd">복사</span> 버튼으로 쉽게 복사할 수 있어요.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div id="results" class="grid"></div>
+
+    <div class="footer">
+      <span class="small">· 썸네일 경로 예시: <span class="kbd">https://img.youtube.com/vi/&lt;VIDEO_ID&gt;/maxresdefault.jpg</span></span>
+    </div>
+  </div>
+
+  <template id="thumb-card">
+    <div class="thumb-card">
+      <a class="thumb-img" target="_blank" rel="noreferrer noopener">
+        <img alt="thumbnail" />
+      </a>
+      <div class="thumb-body">
+        <div class="thumb-title"></div>
+        <div class="actions">
+          <a class="action primary" target="_blank" rel="noreferrer noopener">새 탭에서 열기</a>
+          <button class="action copy" type="button">URL 복사</button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <script>
+    const $ = (sel, el=document) => el.querySelector(sel);
+    const $$ = (sel, el=document) => Array.from(el.querySelectorAll(sel));
+
+    const input = $('#input');
+    const goBtn = $('#go');
+    const jsonBtn = $('#jsonBtn');
+    const status = $('#status');
+    const grid = $('#results');
+
+    const VARIANTS = [
+      { file: 'maxresdefault.jpg', label: 'Max (최대 해상도) · maxresdefault' },
+      { file: 'sddefault.jpg',    label: 'SD (640×480) · sddefault' },
+      { file: 'hqdefault.jpg',    label: 'HQ (480p) · hqdefault' },
+      { file: 'mqdefault.jpg',    label: 'MQ (320p) · mqdefault' },
+      { file: 'default.jpg',      label: 'Default (120×90) · default' },
+      { file: '0.jpg',            label: '0.jpg (클래식 썸네일)' },
+      { file: '1.jpg',            label: '1.jpg (프레임 1)' },
+      { file: '2.jpg',            label: '2.jpg (프레임 2)' },
+      { file: '3.jpg',            label: '3.jpg (프레임 3)' },
+    ];
+
+    let lastResult = null; // { videoId, source, available: [{url,file,label,width,height}] }
+
+    function extractYouTubeId(text) {
+      if (!text) return null;
+      const s = String(text).trim();
+      const idMatch = s.match(/^[0-9A-Za-z_-]{11}$/);
+      if (idMatch) return idMatch[0];
+      const patterns = [
+        /[?&]v=([0-9A-Za-z_-]{11})/,
+        /youtu\.be\/([0-9A-Za-z_-]{11})/,
+        /youtube\.com\/shorts\/([0-9A-Za-z_-]{11})/,
+        /youtube\.com\/embed\/([0-9A-Za-z_-]{11})/,
+        /youtube\.com\/live\/([0-9A-Za-z_-]{11})/,
+      ];
+      for (const re of patterns) {
+        const m = s.match(re);
+        if (m) return m[1];
+      }
+      return null;
+    }
+
+    function checkImage(url) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        let done = false;
+        const finish = (ok) => { if (!done) { done = true; resolve({ ok, url, width: img.naturalWidth, height: img.naturalHeight }); } };
+        img.onload = () => finish(true);
+        img.onerror = () => finish(false);
+        img.referrerPolicy = 'no-referrer';
+        img.src = url;
+        setTimeout(() => finish(false), 8000);
+      });
+    }
+
+    function setStatus(text, isError=false) {
+      if (!text) { status.innerHTML = ''; return; }
+      status.innerHTML = `${isError ? '<span class="error">⚠</span> ' : ''}${text}`;
+    }
+
+    function buildJson(videoId, sourceUrl, available) {
+      return {
+        videoId,
+        sourceUrl: sourceUrl || null,
+        fetchedAt: new Date().toISOString(),
+        thumbnails: available.map(({res, meta}) => ({
+          file: meta.file,
+          label: meta.label,
+          url: res.url,
+          width: res.width || null,
+          height: res.height || null,
+        }))
+      };
+    }
+
+    async function renderThumbnails(videoId, sourceUrl) {
+      grid.innerHTML = ''; // jsonBtn is always enabled now
+      setStatus(`<span class="spin"></span> 썸네일 확인 중…`);
+      const base = `https://img.youtube.com/vi/${videoId}/`;
+      const checks = await Promise.all(VARIANTS.map(v => checkImage(base + v.file)));
+      const available = checks.map((res, i) => ({ res, meta: VARIANTS[i] })).filter(({ res }) => res.ok);
+
+      if (available.length === 0) {
+        setStatus('사용 가능한 썸네일을 찾지 못했습니다. 영상 ID가 맞는지 확인해주세요.', true);
+        lastResult = null;
+        return;
+      }
+
+      setStatus(`총 ${available.length}개 해상도/프레임을 찾았어요.`);
+
+      for (const { res, meta } of available) {
+        const tpl = document.getElementById('thumb-card');
+        const node = tpl.content.cloneNode(true);
+        const imgLink = $('a.thumb-img', node);
+        const img = $('img', node);
+        const title = $('.thumb-title', node);
+        const openBtn = $('.action.primary', node);
+        const copyBtn = $('.action.copy', node);
+
+        img.src = res.url;
+        img.loading = 'lazy';
+        img.decoding = 'async';
+        img.referrerPolicy = 'no-referrer';
+        imgLink.href = res.url;
+        title.textContent = `${meta.label}  ·  ${res.width || '?'}×${res.height || '?'}`;
+        openBtn.href = res.url;
+        copyBtn.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(res.url);
+            copyBtn.textContent = '복사됨!';
+            setTimeout(() => copyBtn.textContent = 'URL 복사', 1200);
+          } catch (e) {
+            alert('클립보드 복사에 실패했습니다. 수동으로 복사해주세요.');
+          }
+        });
+
+        grid.appendChild(node);
+      }
+
+      lastResult = { videoId, source: sourceUrl || null, available }; // jsonBtn is always enabled now
+    }
+
+    async function handleGo() {
+      const raw = input.value.trim();
+      if (!raw) { setStatus('YouTube 링크나 11자리 영상 ID를 입력해주세요.', true); return; }
+      const id = extractYouTubeId(raw);
+      if (!id) { setStatus('영상 ID를 인식하지 못했습니다. URL/ID를 다시 확인해주세요.', true); return; }
+      await renderThumbnails(id, raw);
+    }
+
+    function handleJsonOpen() {
+      const raw = (lastResult && lastResult.source) || input.value.trim();
+      if (!raw) { setStatus('먼저 URL 또는 ID를 입력해주세요.', true); return; }
+      const base = location.origin + location.pathname;
+      const url = base + '?json=1&v=' + encodeURIComponent(raw);
+      location.href = url; // 같은 탭에서 JSON 뷰로 이동
+    }
+
+    goBtn.addEventListener('click', handleGo);
+    jsonBtn.addEventListener('click', handleJsonOpen);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleGo(); });
+
+    // paste to auto-fill
+    window.addEventListener('paste', (e) => {
+      const t = (e.clipboardData || window.clipboardData).getData('text');
+      if (t && /youtu/.test(t)) { input.value = t.trim(); handleGo(); }
+    });
+
+    // sample chips
+    $$('.chip').forEach(ch => ch.addEventListener('click', () => { input.value = ch.dataset.sample; handleGo(); }));
+
+    // === (옵션) URL 파라미터로 JSON API 모드 ===
+    // 사용법:  ?json=1&v=<영상URL또는ID>
+    (async function apiModeIfNeeded(){
+      const params = new URLSearchParams(location.search);
+      if (params.get('json') === '1') {
+        const raw = params.get('v') || params.get('id') || '';
+        const id = extractYouTubeId(raw);
+        if (!id) {
+          document.body.innerHTML = '<pre style="white-space:pre-wrap; padding:16px;">' +
+            JSON.stringify({ error: 'missing_or_invalid_video_id', hint: 'Use ?json=1&v=<id or url>' }, null, 2) + '</pre>';
+          return;
+        }
+        const base = `https://img.youtube.com/vi/${id}/`;
+        const checks = await Promise.all(VARIANTS.map(v => checkImage(base + v.file)));
+        const available = checks.map((res, i) => ({ res, meta: VARIANTS[i] })).filter(({ res }) => res.ok);
+        const json = buildJson(id, raw, available);
+        // 헤더는 변경할 수 없지만, 화면에 순수 JSON을 출력합니다.
+        document.body.innerHTML = '<pre style="white-space:pre; margin:0; padding:18px; background:#0b0f14; color:#e8eef5;">' +
+          escapeHtml(JSON.stringify(json, null, 2)) + '</pre>';
+      }
+    })();
+
+    function escapeHtml(str){
+      return String(str).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','':'\u2028','':'\u2029'}[c]||c));
+    }
+  </script>
+</body>
+</html>
